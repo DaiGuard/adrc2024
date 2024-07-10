@@ -53,3 +53,7 @@ CATKIN_IGNORE
 # Custom
 adrc_ws/install
 adrc_ws/log
+adrc_ws/data/*
+!adrc_ws/data/.gitkeep
+adrc_ws/models/*
+!adrc_ws/models/.gitkeep

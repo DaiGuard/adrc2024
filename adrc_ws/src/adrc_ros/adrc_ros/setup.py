@@ -23,7 +23,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'data_capture = adrc_ros.data_capture:main'
+            'data_capture = adrc_ros.data_capture:main',
+            'test_run = adrc_ros.test_run:main',
         ],
     },
 )

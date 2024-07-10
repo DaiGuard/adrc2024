@@ -33,7 +33,6 @@ class DataCaptureNode(Node):
         # ROSパラメータサーバの登録
         self.add_on_set_parameters_callback(self.parameters_cb)
 
-
         # データ購読登録
         self.current_vel_sub = Subscriber(self, TwistStamped, "/current_vel")
         self.front_image_sub = Subscriber(self, Image, "/front_camera/raw")
@@ -96,7 +95,7 @@ class DataCaptureNode(Node):
             if os.path.exists(self.folder_path):
                 print("found record path: {}".format(self.folder_path))
             else:
-                os.mkdir(self.folder_path)
+                os.makedirs(self.folder_path)
                 print("create record path: {}".format(self.folder_path))
 
             # イメージフォルダの絶対パスを取得
