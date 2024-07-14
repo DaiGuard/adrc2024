@@ -6,6 +6,7 @@ import sys
 import torch
 import torchvision
 import torchvision.transforms as transforms
+from torchvision import models
 from torch.utils.data import DataLoader
 
 # from torch2trt import torch2trt
@@ -18,6 +19,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='model train and eval')
     parser.add_argument('--input', '-i', type=str)
     parser.add_argument('--output', '-o', required=True, type=str)
+    parser.add_argument('--mask', '-m', type=str)
     parser.add_argument('--data', '-d', action='append', required=True, type=str)
     parser.add_argument('--epoch', '-e', default=100, type=int)
     parser.add_argument('--batch', '-b', default=8, type=int)
@@ -27,7 +29,7 @@ if __name__ == '__main__':
     device = torch.device('cuda')
     model = None
     if not args.input:
-        model = torchvision.models.resnet18(pretrained=False)
+        model = torchvision.models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
         model.fc = torch.nn.Linear(512, 2)
         # model.fc = torch.nn.Linear(512, 1)
     else:
@@ -47,7 +49,7 @@ if __name__ == '__main__':
     optimizer = torch.optim.Adam(model.parameters())
 
     # 初期の値を取得
-    dataset = XYDataset(args.data, TRANSFORMS)
+    dataset = XYDataset(args.data, TRANSFORMS, args.mask)
     epoch = args.epoch    
     batch_size = args.batch
     ratio = args.ratio
@@ -62,7 +64,7 @@ if __name__ == '__main__':
         while epoch > 0:
             count = 0
             sum_loss = 0.0
-            for images, xy in iter(train_loader):
+            for images, xy, _, _ in iter(train_loader):
                 images = images.to(device)
                 xy = xy.to(device)
 
@@ -97,9 +99,9 @@ if __name__ == '__main__':
         current_id = cv2.getTrackbarPos('ID', winname)
         if current_id != id:
             id = current_id
-            res_image, res_xy = eval_dataset.getData(id)
+            res_image, res_xy, _, _ = eval_dataset.getData(id)
 
-            image, xy = dataset[id]
+            image, xy, _, _ = dataset[id]
             image = image.unsqueeze(dim=0)
             image = image.to(device)       
             output = model(image)
