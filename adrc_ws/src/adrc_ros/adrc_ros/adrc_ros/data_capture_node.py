@@ -78,9 +78,10 @@ class DataCaptureNode(Node):
             if current_time - self.last_timestamp > self.record_timespan:
                 name = str(uuid.uuid4())
 
-                self.dataset_file.write("{}, {}, {}\n".format(name, current_vel.twist.linear.x, current_vel.twist.angular.z))
-                cv2.imwrite(os.path.join(self.image_path, name + "_front.jpg"), cv_front)
-                cv2.imwrite(os.path.join(self.image_path, name + "_rear.jpg"), cv_rear)
+                self.dataset_file.write("{}, {}, {}\n".format(name, current_vel.twist.linear.x, - current_vel.twist.angular.z))
+                cv2.imwrite(os.path.join(self.image_path, name + ".jpg"), cv_front)
+                # cv2.imwrite(os.path.join(self.image_path, name + "_front.jpg"), cv_front)
+                # cv2.imwrite(os.path.join(self.image_path, name + "_rear.jpg"), cv_rear)
 
                 self.last_timestamp = current_time
 

@@ -21,27 +21,35 @@ class XYDataset(Dataset):
                 for line in f:
                     d = line.replace(' ', '').split(',')
 
-                    use = True
-                    if len(d) == 4:
-                        if int(d[3]) > 0:
-                            use = True
-                        else:
-                            use = False
+                    # use = True
+                    # if len(d) == 4:
+                    #     if int(d[3]) > 0:
+                    #         use = True
+                    #     else:
+                    #         use = False
+                    #                     
+                    filepath = os.path.join(path, "images", d[0] + ".jpg")
+                    # p = d[0].split("/")
+                    # filepath = ""
+                    # if len(p) == 1:
+                    #     filepath = os.path.join(path, "images", p[0] + "_front.jpg")
+                    # elif len(p) == 2:
+                    #     filepath = os.path.join(path, "images", p[0], p[1] + "_front.jpg")
 
-                    p = d[0].split("/")
-                    filepath = ""                    
-                    if len(p) == 1:
-                        filepath = os.path.join(path, "images", p[0] + "_front.jpg")
-                    elif len(p) == 2:
-                        filepath = os.path.join(path, "images", p[0], p[1] + "_front.jpg")
+                    dataset.append({                        
+                        'file': filepath,
+                        'name': d[0],
+                        'throttle': float(d[1]), 
+                        'steering': float(d[2])
+                        })
 
-                    if use:
-                        dataset.append({                        
-                            'file': filepath,
-                            'name': d[0],
-                            'throttle': float(d[1]), 
-                            'steering': float(d[2])
-                            })
+                    # if use:
+                    #     dataset.append({                        
+                    #         'file': filepath,
+                    #         'name': d[0],
+                    #         'throttle': float(d[1]), 
+                    #         'steering': float(d[2])
+                    #         })
 
         self.dataset = dataset
         self.mask_path = mask_path
@@ -66,7 +74,8 @@ class XYDataset(Dataset):
         if self.transform:
             image = self.transform(image)
 
-        return image, Tensor([throttle, steering]), name, image_path
+        # return image, Tensor([throttle, steering]), name, image_path
+        return image, Tensor([steering]), name, image_path
     
     def getData(self, index):
         image_path = self.dataset[index]['file']
@@ -75,7 +84,8 @@ class XYDataset(Dataset):
         steering = self.dataset[index]['steering']        
         image = cv2.imread(image_path)
 
-        return image, (throttle, steering), name, image_path
+        # return image, (throttle, steering), name, image_path
+        return image, steering, name, image_path
 
     def getSample(self, ratio):
 

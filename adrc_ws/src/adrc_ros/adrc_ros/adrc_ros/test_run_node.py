@@ -21,9 +21,12 @@ class TestRunNode(Node):
 
         # パラメータ登録
         self.model_path = "models/model.pth"
+        self.mask_file = "mask.png"
 
         self.declare_parameter("model_path", self.model_path)
+        self.declare_parameter("mask_file", self.mask_file)
         self.model_path = self.get_parameter("model_path").get_parameter_value().string_value
+        self.mask_file = self.get_parameter("mask_file").get_parameter_value().string_value
 
         # ROSパラメータサーバの登録
         self.add_on_set_parameters_callback(self.parameters_cb)
@@ -40,6 +43,9 @@ class TestRunNode(Node):
         model = torch.load(self.model_path)
         model = model.to(self.device)
         self.model = model.eval()
+
+        # マスク画像の読み込み
+        self.mask = cv2.imread(self.mask_file, cv2.IMREAD_UNCHANGED)
         
         # Cv変換の準備
         self.cv_bridge = CvBridge()
@@ -54,19 +60,27 @@ class TestRunNode(Node):
         for param in params:
             if param.name == 'model_path':
                 self.model_path = param.value
+            if param.name == 'mask_file':
+                self.mask_file = param.value
 
         return SetParametersResult(successful=True)
 
     def image_cb(self, msg):
         cv_image = self.cv_bridge.imgmsg_to_cv2(msg)
-        cv_image = cv2.cvtColor(cv_image, cv2.COLOR_RGBA2BGR)
-        input_tensor = self.transform(cv_image)
-        input_batch = input_tensor.unsqueeze(0)
-        output = self.model(input_batch.to(self.device))
+        cv_image[:, :] = cv_image[:, :] * (1 - self.mask[:,:,3:] / 255) \
+                    + cv_image[:,:,:3] * self.mask[:,:,3:] / 255            
+
+        # cv_image = cv2.cvtColor(cv_image, cv2.COLOR_RGBA2BGR)
+        image = self.transform(cv_image)
+        image = image.unsqueeze(dim=0)
+        image = image.to(self.device)
+        output = self.model(image)
         output = output.to('cpu')
 
         cmd = Twist()
-        cmd.linear.x = float(output[0][0])
-        cmd.angular.z = float(output[0][1])
+        # cmd.linear.x = float(output[0][0])
+        # cmd.angular.z = float(output[0][1])
+        cmd.linear.x = 0.4
+        cmd.angular.z = - float(output[0])
 
         self.cmd_vel_pub.publish(cmd)

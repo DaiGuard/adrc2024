@@ -13,6 +13,8 @@ from torch.utils.data import DataLoader
 from xy_dataset import XYDataset
 
 import cv2
+import matplotlib.pyplot as plt
+
 
 if __name__ == '__main__':
 
@@ -30,8 +32,8 @@ if __name__ == '__main__':
     model = None
     if not args.input:
         model = torchvision.models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
-        model.fc = torch.nn.Linear(512, 2)
-        # model.fc = torch.nn.Linear(512, 1)
+        # model.fc = torch.nn.Linear(512, 2)
+        model.fc = torch.nn.Linear(512, 1)
     else:
         model = torch.load(args.input)
     model = model.to(device)
@@ -61,6 +63,7 @@ if __name__ == '__main__':
     print(f'{len(dataset)}: {len(train_dataset)}/{len(eval_dataset)}')
 
     try:
+        plot_data = []
         while epoch > 0:
             count = 0
             sum_loss = 0.0
@@ -84,6 +87,11 @@ if __name__ == '__main__':
                 print(f'[{epoch}] {count}/{len(dataset)}: sum_loss={sum_loss/count}, loss={float(loss)}')
             
             epoch -= 1
+            plot_data.append(sum_loss)
+
+        plt.plot(plot_data)
+        plt.show()
+
     except KeyboardInterrupt:
         pass
 
@@ -107,8 +115,10 @@ if __name__ == '__main__':
             output = model(image)
             output = output.to('cpu')
 
-        v_val = float(res_xy[0])
-        u_val = float(res_xy[1])        
+        # v_val = float(res_xy[0])        
+        # u_val = float(res_xy[1])  
+        v_val = 0.8
+        u_val = float(res_xy)  
 
         v = int((1.0 - v_val) * res_image.shape[0] / 2.0)
         # v = int(res_image.shape[0] / 2.0)
@@ -116,9 +126,10 @@ if __name__ == '__main__':
         
         res_image = cv2.circle(res_image, (u, v), 10, (255, 0, 0), thickness=-1)
 
-        out_v_val = output[0][0]
-        out_u_val = output[0][1]
-        # out_u_val = output[0]
+        # out_v_val = output[0][0]
+        # out_u_val = output[0][1]
+        out_v_val = 0.8
+        out_u_val = output[0]
         out_v = int((1.0 - out_v_val) * res_image.shape[0] / 2.0)
         # out_v = int(res_image.shape[0] / 2.0)
         out_u = int((1.0 - out_u_val) * res_image.shape[1] / 2.0)

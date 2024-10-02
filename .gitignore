@@ -57,3 +57,5 @@ adrc_ws/data/*
 !adrc_ws/data/.gitkeep
 adrc_ws/models/*
 !adrc_ws/models/.gitkeep
+
+.vscode/
