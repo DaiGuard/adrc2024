@@ -1,6 +1,6 @@
 #! /bin/env bash
 
-if [[ $# -ne 1 ]]; then
+if [[ $# -ne 2 ]]; then
     echo -e "Usage:"
     echo -e "  ./run_live_run.sh MODEL_PATH MASK_FILE"
     echo -e ""
