@@ -60,3 +60,7 @@ adrc_ws/models/*
 
 .pio/
 .vscode/
+data/*
+!data/.gitkeep
+models/*
+!models/.gitkeep
