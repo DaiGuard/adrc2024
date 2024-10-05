@@ -25,6 +25,8 @@ setup(
         'console_scripts': [
             'data_capture = adrc_ros.data_capture:main',
             'test_run = adrc_ros.test_run:main',
+            'live_run = adrc_ros.live_run:main',
+            'stream_test = adrc_ros.stream_test:main'
         ],
     },
 )

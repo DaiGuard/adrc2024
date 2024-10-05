@@ -37,35 +37,9 @@ class LiveRunNode(Node):
         GObject.threads_init()
         Gst.init(None)
 
-        # Gstreamerランチャの宣言
-        launch_str = "nvarguscamerasrc sensor-id=0 ! video/x-raw(memory:NVMM),fromat=NV12,width=1280,height=720,framerate=15/1 ! m.sink_0 "
-        # launch_str+= "nvarguscamerasrc sensor-id=1 ! video/x-raw(memory:NVMM),fromat=NV12,width=1280,height=720,framerate=60/1 ! nvvideoconvert flip-method=rotate-180 ! m.sink_1 "
-        launch_str+= "nvstreammux name=m width=1280 height=720 batch-size=1 num-surfaces-per-frame=1 "
-        # launch_str+= "nvstreammux name=m width=1280 height=1440 batch-size=2 num-surfaces-per-frame=1 "
-        launch_str+= "! nvmultistreamtiler columns=1 rows=1 width=1280 height=720 "
-        # launch_str+= "! nvmultistreamtiler columns=1 rows=2 width=1280 height=1440 "
-        launch_str+= "! nvvideoconvert ! video/x-raw(memory:NVMM),width=640,height=360,format=RGBA ! fakesink name=sink sync=false "
-        #launch_str+= "! nvvideoconvert ! video/x-raw(memory:NVMM),width=640,height=720,format=RGBA ! tee name=t ! queue ! fakesink name=sink sync=false "
-        # launch_str+= "t.src_1 ! queue ! nvvidconv ! video/x-raw,width=640,height=720 ! jpegenc ! rtpjpegpay ! udpsink host=192.168.3.103 port=8554 sync=false"
-        self.pipeline = Gst.parse_launch(launch_str)
-        if not self.pipeline:
-            raise RuntimeError('unable to create pipeline')
-        
-        # Gstreamerプローブの取得
-        sink = self.pipeline.get_by_name("sink")
-        if not sink:
-            raise RuntimeError('unable to get sink element')
-        sinkpad = sink.get_static_pad("sink")
-        if not sinkpad:
-            raise RuntimeError('unable to get sink pad')
-        sinkpad.add_probe(Gst.PadProbeType.BUFFER, self.sink_pad_buffer_probe, 0)
-
-        # Gstreamerバス状態の監視
-        self.loop = GObject.MainLoop()
-
         # ROSパラメータ登録
         self.model_path = 'models/model_weight.pth'
-        self.mask_file = "mask.png"
+        self.mask_file = "data/mask.png"
 
         self.declare_parameter('model_path', self.model_path)
         self.declare_parameter("mask_file", self.mask_file)        
@@ -103,6 +77,9 @@ class LiveRunNode(Node):
         self.current_pose = [ 0.0, 0.0, 0.0 ]
         self.cmd_vel = [ 0.0, 0.0 ]
 
+        # マスク画像の読み込み
+        self.mask = cv2.imread(self.mask_file, cv2.IMREAD_UNCHANGED)
+
         self.device = torch.device('cuda')
         self.transform = transforms.Compose([            
             transforms.ToPILImage(),
@@ -113,21 +90,45 @@ class LiveRunNode(Node):
         ])
         model = torch.load(self.model_path)
         model = model.to(self.device)
-        # data = torch.zeros((1, 3, 224, 224)).to(device)
-        # self.model_trt = torch2trt(model, [data], fp16_mode=True)
         self.model = model.eval()
 
+        launch_str  =  'nvarguscamerasrc sensor-id=0 ! video/x-raw(memory:NVMM),fromat=NV12,width=1280,height=720,framerate=15/1 ! '
+        launch_str +=  'nvvideoconvert ! video/x-raw,width=640,height=480 ! '
+        launch_str += f'gdkpixbufoverlay location={self.mask_file} ! '
+        launch_str +=  'videoconvert ! video/x-raw,format=RGB ! '
+        launch_str +=  'appsink async=true name=sink'
+
+        # Gstreamerランチャの宣言
+        self.pipeline = Gst.parse_launch(launch_str)
+        if not self.pipeline:
+            raise RuntimeError('unable to create pipeline')
+        
+        # Gstreamerプローブの取得
+        sink = self.pipeline.get_by_name("sink")
+        if not sink:
+            raise RuntimeError('unable to get sink element')
+        sinkpad = sink.get_static_pad("sink")
+        if not sinkpad:
+            raise RuntimeError('unable to get sink pad')
+        sinkpad.add_probe(Gst.PadProbeType.BUFFER, self.sink_pad_buffer_probe, 0)
+
+        # Gstreamerバス状態の監視
+        self.loop = GObject.MainLoop()
+
+
     def parameters_cb(self, params):
+        print(f'param set: {params}')
         for param in params:
-            print("set ", param)
             if param.name == 'model_path':
                 self.model_path = param.value
+            if param.name == 'mask_file':
+                self.mask_file = param.value
 
         return SetParametersResult(successful=True)
 
 
     def status_cb(self, msg: Int32):
-        # print('status', msg)
+        # print(f'status: {msg.data}')
         pass
 
     def pose_cb(self, msg: PoseStamped):
@@ -144,39 +145,20 @@ class LiveRunNode(Node):
         gst_buffer = info.get_buffer()
         if not gst_buffer:
             return Gst.PadProbeReturn.DROP
-    
-        batch_meta = pyds.gst_buffer_get_nvds_batch_meta(hash(gst_buffer))
-        l_frame = batch_meta.frame_meta_list
-        while l_frame is not None:
-            try:
-                frame_meta = pyds.NvDsFrameMeta.cast(l_frame.data)
-            except StopIteration:
-                break
-
-            image = pyds.get_nvds_buf_surface(hash(gst_buffer), frame_meta.batch_id)
-            image = cv2.cvtColor(image, cv2.COLOR_RGBA2BGR)
-            ######
-            image = cv2.rectangle(image, (0, 0), (640, 130), (0, 0, 0), thickness=-1)
-            ######
-            image = cv2.rectangle(image, (150, 260), (490, 360), (0, 0, 0), thickness=-1)
+        
+        result, map_info = gst_buffer.map(Gst.MapFlags.READ)
+        if result:
+            image = np.ndarray(shape=(480, 640, 3), dtype=np.uint8, buffer=map_info.data)
             input_tensor = self.transform(image)            
             input_batch = input_tensor.unsqueeze(0)
             output = self.model(input_batch.to(self.device))
             output = output.to('cpu')
 
-            # u = int(image.shape[1] / 2.0 * (1.0 - output[0][1]))
-            # v = int(image.shape[0] / 2.0 * (1.0 - output[0][0]))
-            # image = cv2.circle(image, (u, v), 10, (255,0,0), thickness=-1)
-
-            # imgmsg = self.bridge.cv2_to_compressed_imgmsg(image)
-            # self.preview_img_pub.publish(imgmsg)
-
             cmd_vel = Twist()
             max_throttle = 0.09
             min_throttle = 0.06
             throttle = 0.0
-            # steer = float(output[0][1])
-            steer = float(output[0])
+            steer = - float(output[0])
 
             if math.fabs(steer) > 0.5:
                 steer = 0.5 *  steer / math.fabs(steer)
@@ -191,28 +173,7 @@ class LiveRunNode(Node):
             cmd_vel.angular.y = 0.0
             cmd_vel.angular.z = steer
 
-            # if float(output[0][0]) > 0.8:
-            #     cmd_vel.linear.x = 0.8
-            # else:
-            #     cmd_vel.linear.x = float(output[0][0])
-            # cmd_vel.linear.y = 0.0
-            # cmd_vel.linear.z = 0.0
-            # cmd_vel.angular.x = 0.0
-            # cmd_vel.angular.y = 0.0
-            # if math.fabs(float(output[0][1])) > 0.5:
-            #     cmd_vel.angular.z = 0.5 * float(output[0][1]) / math.fabs(float(output[0][1]))
-            # elif math.fabs(float(output[0][1])) > 0.35:
-            #     cmd_vel.angular.z = 0.35 * float(output[0][1]) / math.fabs(float(output[0][1]))
-            # elif math.fabs(float(output[0][1])) > 0.1:
-            #     cmd_vel.angular.z = 0.1 * float(output[0][1]) / math.fabs(float(output[0][1]))
-            # else:
-            #     cmd_vel.angular.z = float(output[0][1])
             self.cmdvel_pub.publish(cmd_vel)
-
-            try:
-                l_frame=l_frame.next
-            except StopIteration:
-                break            
 
         return Gst.PadProbeReturn.OK
     
@@ -223,7 +184,6 @@ class LiveRunNode(Node):
         self.pipeline.set_state(Gst.State.PLAYING)
         try:
             rclpy.spin(self)
-            # self.loop.run()
         except:
             pass
 

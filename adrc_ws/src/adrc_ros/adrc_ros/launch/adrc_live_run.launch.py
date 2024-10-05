@@ -17,11 +17,11 @@ def generate_launch_description():
         "model_path", default="models/model.pth"
     )
     mask_file = LaunchConfiguration(
-        "mask_file", default="mask.png"
+        "mask_file", default="data/mask.png"
     )
 
     model_path_arg = DeclareLaunchArgument("model_path", default_value="models/model.pth")
-    mask_file_arg = DeclareLaunchArgument("mask_file", default_value="mask.png")
+    mask_file_arg = DeclareLaunchArgument("mask_file", default_value="data/mask.png")
 
     live_run = Node(
         package='adrc_ros',
@@ -36,12 +36,14 @@ def generate_launch_description():
             ('/cmd_vel', '/cmd_vel'),
         ],
         parameters=[{
-            'model_path': model_path,           
+            'model_path': model_path,     
+            'mask_file': mask_file      
         }]
     )        
 
     return LaunchDescription([
         model_path_arg,
+        mask_file_arg,
 
         live_run,
     ])

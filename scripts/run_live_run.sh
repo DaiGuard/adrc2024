@@ -2,10 +2,10 @@
 
 if [[ $# -ne 1 ]]; then
     echo -e "Usage:"
-    echo -e "  ./run_live_run.sh MODEL_PATH"
+    echo -e "  ./run_live_run.sh MODEL_PATH MASK_FILE"
     echo -e ""
     echo -e "Example:"
-    echo -e "  ./run_live_run.sh MODEL_PATH"
+    echo -e "  ./run_live_run.sh models/model.pth data/mask.png"
 
     exit
 fi
