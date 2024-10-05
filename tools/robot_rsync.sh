@@ -17,8 +17,8 @@ fi
 
 # 環境設定
 USERNAME="nvidia"
-# TARGETNAME="adrc.local"
-TARGETNAME="192.168.11.4"
+TARGETNAME="adrc.local"
+# TARGETNAME="192.168.11.4"
 TARGETDIR=/home/$USERNAME/Workspaces/adrc2024/
 
 # ワークディレクトリを取得
