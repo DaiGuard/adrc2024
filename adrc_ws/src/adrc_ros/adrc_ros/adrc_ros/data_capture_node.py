@@ -4,7 +4,7 @@ from rclpy.node import Node
 from rcl_interfaces.msg import SetParametersResult
 from message_filters import ApproximateTimeSynchronizer, Subscriber
 from geometry_msgs.msg import TwistStamped
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image, LaserScan
 from std_srvs.srv import SetBool
 
 import os
@@ -37,9 +37,10 @@ class DataCaptureNode(Node):
         self.current_vel_sub = Subscriber(self, TwistStamped, "/current_vel")
         self.front_image_sub = Subscriber(self, Image, "/front_camera/raw")
         self.rear_image_sub = Subscriber(self, Image, "/rear_camera/raw")
+        self.scan_sub = Subscriber(self, LaserScan, "/scan" )
 
         self.msg_sync = ApproximateTimeSynchronizer(
-            [self.current_vel_sub, self.front_image_sub, self.rear_image_sub],
+            [self.current_vel_sub, self.front_image_sub, self.rear_image_sub, self.scan_sub],
             10, 0.5)
         self.msg_sync.registerCallback(self.message_cb)
 
@@ -60,7 +61,7 @@ class DataCaptureNode(Node):
 
         return SetParametersResult(successful=True)
     
-    def message_cb(self, current_vel, front_image, rear_image):
+    def message_cb(self, current_vel, front_image, rear_image, scan):
         
         cv_front = self.cv_bridge.imgmsg_to_cv2(front_image)
         cv_rear = self.cv_bridge.imgmsg_to_cv2(rear_image)
@@ -78,10 +79,20 @@ class DataCaptureNode(Node):
             if current_time - self.last_timestamp > self.record_timespan:
                 name = str(uuid.uuid4())
 
+                # データセットフィルの保存
                 self.dataset_file.write("{}, {}, {}\n".format(name, current_vel.twist.linear.x, - current_vel.twist.angular.z))
+
+                # 画像ファイルの保存
                 cv2.imwrite(os.path.join(self.image_path, name + ".jpg"), cv_front)
                 # cv2.imwrite(os.path.join(self.image_path, name + "_front.jpg"), cv_front)
                 # cv2.imwrite(os.path.join(self.image_path, name + "_rear.jpg"), cv_rear)
+                
+                # スキャンデータの保存
+                with open(os.path.join(self.scan_path, name + ".txt"), "w") as f:
+                    f.write(f"{len(scan.ranges)}, ")
+                    for range in scan.ranges:
+                        f.write(f"{range}, ")
+                    f.write(f"{scan.angle_min}, {scan.angle_max}\n")
 
                 self.last_timestamp = current_time
 
@@ -105,7 +116,7 @@ class DataCaptureNode(Node):
                 print("found record image path: {}".format(self.image_path))
             else:
                 os.mkdir(self.image_path)
-                print("create record path: {}".format(self.image_path))
+                print("create record image path: {}".format(self.image_path))
 
             # データセットファイルの確認
             dataset_path = os.path.join(self.folder_path, "dataset.csv")
@@ -115,6 +126,14 @@ class DataCaptureNode(Node):
             else:
                 print("create dataset file: {}".format(dataset_path))
                 self.dataset_file = open(dataset_path, "w")
+
+            self.scan_path = os.path.join(self.folder_path, "scans")
+            if os.path.exists(self.scan_path):
+                print("found record scan path: {}".format(self.scan_path))
+            else:
+                os.mkdir(self.scan_path)
+                print("create record scan path: {}".format(self.scan_path))
+
         else:
             if self.dataset_file:
                 self.dataset_file.close()
